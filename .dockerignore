@@ -1,1 +1,6 @@
+.git/
+.settings/
+.vagrant/
 target/
+Vagrantfile
+README.md
