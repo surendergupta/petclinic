@@ -237,8 +237,68 @@ stage("Build"){
     }
 }
 ```
-- Now scan trivy fs and generate report
 
+- Email Setup on jenkins
+    - Install Docker plugin Email Extended Notification
+    - Now Goto Dashboard -> Manage Jenkins -> system -> E-mail Notification
+    ```config
+    SMTP server: smtp.gmail.com
+    Advnaced
+        checked Use SMTP Authentication
+            Username: myinrbtc@gmail.com
+            Password: <MY_APP_PASS>
+        checked Use SSL
+        SMTP Port: 465
+        Reply-To Address: myinrbtc@gmail.com
+    Checked Test configuration by sending test e-mail
+        Test e-mail recipient: gupta.surender.1990@gmail.com
+    Click on Test Configuration on right side button
+    if you see this message Email was successfully sent
+    it means configured
+    ```
+    - Now Goto Dashboard -> Manage Jenkins -> system -> Extended E-mail Notification
+    ```
+    SMTP server: smtp.gmail.com
+    SMTP Port: 465
+    Advanced
+        Add credential 
+        - Kind username and password
+            - Username: myinrbtc@gmail.com
+            - password: <MY_APP_PASS>
+            - ID: gmail
+            - Description: gmail
+            - click on add
+        - Credential select your gmail id
+        - checked SSL
+
+    Default Trigger click
+        - checked on Always (Also as per your requirements)
+    
+    ```
+- Now scan trivy fs and generate report
+```
+stage("Trivy File System Scan"){
+    steps{
+        sh "trivy fs --format  table -o trivy-fs-report.html ."
+    }
+}
+```
+
+- EMAIL Trivy Report add below in pipeline script
+
+```
+post {
+    always {
+    emailext attachLog: true,
+        subject: "'${currentBuild.result}'",
+        body: "Project: ${env.JOB_NAME}<br/>" +
+            "Build Number: ${env.BUILD_NUMBER}<br/>" +
+            "URL: ${env.BUILD_URL}<br/>",
+        to: 'gupta.surender.1990@gmail.com',
+        attachmentsPattern: 'trivy-fs-report.html, trivy_image_report.txt, dependency-check-report.xml'
+    }
+}
+```
 - Docker Image Build and Push
     - We need to install the Docker tool in our system, Goto Dashboard → Manage Plugins → Available plugins → Search for Docker and install these plugins and click on install without restart
         - Docker
@@ -270,13 +330,62 @@ stage("Docker Build & Push"){
     steps{
         script{
             withDockerRegistry(credentialsId: 'docker-hub', toolName: 'docker') {
-                sh "docker build -t petclinic1 ."
-                sh "docker tag petclinic1 surendergupta/pet-clinic123:latest "
-                sh "docker push surendergupta/pet-clinic123:latest "
+                sh "docker build -t petclinic ."
+                sh "docker tag petclinic surendergupta/petclinic:${BUILD_NUMBER} "
+                sh "docker tag petclinic surendergupta/petclinic:latest "
+                sh "docker push surendergupta/petclinic:${BUILD_NUMBER}"
+                sh "docker push surendergupta/petclinic:latest"
+                // remove from jenkins server storage increase space
+                sh "docker rmi petclinic"
+                sh "docker rmi surendergupta/petclinic:${BUILD_NUMBER}"
             }
         }
     }
 }
 ```
+- When you log in to Dockerhub, you will see a new image is created
+- Trivy scan image report
+- Add this stage to your pipeline syntax
+```pipeline
+stage("TRIVY Image Scan"){
+    steps{
+        sh "trivy image surendergupta/petclinic:latest > trivy_image_report.txt" 
+    }
+}
+```
+- Deploy the image using Docker Pipeline
+- Add this stage to your pipeline syntax
+```pipeline
+stage("Deploy Using Docker"){
+    steps{
+        // Stop and remove the container only if it exists
+        sh """
+        if [ \$(docker ps -q -f name=petclinic) ]; then
+            echo "Stopping existing container..."
+            docker stop petclinic
+        fi
 
--
+        if [ \$(docker ps -aq -f name=petclinic) ]; then
+            echo "Removing existing container..."
+            docker rm petclinic
+        fi
+
+        echo "Pulling the latest image..."
+        docker pull surendergupta/petclinic:latest
+
+        echo "Starting new container..."
+        docker run -d --name petclinic -p 8082:8080 --restart always surendergupta/petclinic:latest
+        """
+    }
+}
+```
+- Now deploy your application using Docker complete
+
+![Docker Application](./screenshots/pipeline_docker.png)
+
+- Running Application on docker screenshot
+
+![Running Application on docker](./screenshots/docker_application.png)
+
+- Now Phase 1 complete
+
