@@ -389,3 +389,93 @@ stage("Deploy Using Docker"){
 
 - Now Phase 1 complete
 
+## Phase 2 Running Application on Tomcat Server
+
+- Install Tomcat on Port 8083 and finally deploy on Apache Tomcat
+    - Before we add Pipeline Script, we need to install and configure Tomcat on our server. Here are the steps to install Tomcat 9
+    - Change to opt directory
+    ```bash
+    cd /opt
+    ```
+    - Download the Tomcat file using the wget command
+    ```bash
+    sudo wget https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.65/bin/apache-tomcat-9.0.65.tar.gz
+    ``` 
+    - Unzip tar file
+    ```bash
+    sudo tar -xvzf apache-tomcat-9.0.65.tar.gz
+    ```
+    - Move to the conf directory and change the port in the Tomcat server to another port from the default port
+    ```bash
+    sudo cd apache-tomcat-9.0.65
+    sudo vi conf/server.xml
+    ```
+    - Update 8080 to 8083 in Connecter and esc + : + wq and then enter to save file
+    - Now Update Tomcat users’ XML file for manager app login
+    ```
+    sudo vi conf/tomcat-users.xml
+
+    // Add below line inside <tomcat-users></tomcat-users> tag just before </tomcat-users> tag
+    <user username="admin" password="admin1234" roles="admin-gui, manager-gui"/>
+    ```
+    - Create a symbolic link for the direct start and stop of Tomcat
+    ```
+    sudo ln -s /opt/apache-tomcat-9.0.65/bin/startup.sh /usr/bin/startTomcat
+    sudo ln -s /opt/apache-tomcat-9.0.65/bin/shutdown.sh /usr/bin/stopTomcat
+    ``` 
+    - Go to this path and comment below lines in manager and host-manager files
+    ```
+    sudo vi webapps/manager/META-INF/context.xml
+    sudo vi webapps/host-manager/META-INF/context.xml
+    // Comment below line both file 
+    <!-- Valve className="org.apache.catalina.valves.RemoteAddrValve" allow="127\.\d+\.\d+\.\d+|::1|0:0:0:0:0:0:0:1" /> -->
+    ```
+    - Now Stop and start tomcat service
+    ```bash
+    sudo stopTomcat
+    sudo startTomcat
+    ```
+
+    - Certainly! To allow both ubuntu/vagrant (if use vagrant box) and Jenkins users to copy the petclinic.war file to the /opt/apache-tomcat-9.0.65/webapps/ directory without entering passwords, you can add the appropriate entries to the /etc/sudoers file. Here’s how you can do it: Use the sudo command to edit the sudoers file using a text editor like visudo:
+    ```bash
+    sudo visudo
+    ```
+    - Scroll down to an appropriate section (e.g., just below the line with %sudo ALL=(ALL:ALL) ALL) and add the following lines:
+    ```bash
+    #after workspace change your job name 
+    ubuntu ALL=(ALL) NOPASSWD: /bin/cp /var/lib/jenkins/workspace/PetClinic/target/petclinic.war /opt/apache-tomcat-9.0.65/webapps/
+    jenkins ALL=(ALL) NOPASSWD: /bin/cp /var/lib/jenkins/workspace/PetClinic/target/petclinic.war /opt/apache-tomcat-9.0.65/webapps/
+    ```
+    - Save the file and exit the text editor.
+    - If you see the <IP_ADDRESS>:8083 running tomcat server
+
+    ![`Tomcat server running`](./screenshots/tomcat_server.png)
+
+- Add this stage to your Pipeline script
+```pipeline
+stage("Deploy To Tomcat Server"){
+    steps{
+        sh "cp  /var/lib/jenkins/workspace/PetClinic/target/petclinic.war /opt/apache-tomcat-9.0.65/webapps/ "
+    }
+}
+```
+- Still if you have permission issue first restart jenkins server and second use alternative way
+```
+sudo groupadd tomcat
+sudo usermod -aG tomcat $USER
+sudo usermod -aG tomcat jenkins
+sudo chgrp -R tomcat /opt/apache-tomcat-9.0.65/webapps/
+sudo chmod -R g+w /opt/apache-tomcat-9.0.65/webapps/
+```
+- And you can access your application on Port 8083. This is a Petclinic Real World Application that has all Functional Tabs.
+- Access the Petclinic Real World Application
+```url
+http://<public-ip>:8083/petclinic
+```
+![Petclinic Real World Application](./screenshots/petclinic_real_world.png)
+
+- Now Phase 2 completed
+
+
+
+
